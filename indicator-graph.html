@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Indikator Graf - Detaljerad Analys</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        header h2 {
+            font-size: 1.2rem;
+            color: #666;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 500px;
+            margin-bottom: 30px;
+        }
+
+        .info-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .info-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .info-item strong {
+            display: block;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .close-btn:hover {
+            background: #d32f2f;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid #c62828;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="close-btn" onclick="window.close()">Stäng</button>
+        <header>
+            <h1 id="indicatorTitle">📈 Indikator Analys</h1>
+            <h2 id="stockName">Laddar...</h2>
+        </header>
+
+        <div id="error" class="error hidden"></div>
+
+        <div id="chart-section">
+            <div class="chart-container">
+                <canvas id="indicatorChart"></canvas>
+            </div>
+
+            <div class="info-section">
+                <h3 id="infoTitle">Om Indikatorn</h3>
+                <div class="info-grid" id="infoGrid">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Indicator information
+        const indicatorInfo = {
+            MA: {
+                title: 'Glidande Medelvärde (MA)',
+                info: [
+                    { title: 'Vad är MA?', desc: 'Ett glidande medelvärde jämnar ut prisfluktuationer och visar trendens riktning' },
+                    { title: 'Köpsignal', desc: 'När priset bryter över MA-linjen indikerar det en uppåtgående trend' },
+                    { title: 'Säljsignal', desc: 'När priset bryter under MA-linjen indikerar det en nedåtgående trend' },
+                    { title: 'Period', desc: 'Längre perioder (200 dagar) ger mer stabila signaler' },
+                    { title: 'Användning', desc: 'Används för att identifiera trendförändringar och support/resistance-nivåer' },
+                    { title: 'Tips', desc: 'Kombinera med andra indikatorer för bättre noggrannhet' }
+                ]
+            },
+            EMA: {
+                title: 'Exponentiellt Medelvärde (EMA)',
+                info: [
+                    { title: 'Vad är EMA?', desc: 'Liknande MA men ger mer vikt åt senaste priserna' },
+                    { title: 'Köpsignal', desc: 'Pris över EMA indikerar uppåtgående momentum' },
+                    { title: 'Säljsignal', desc: 'Pris under EMA indikerar nedåtgående momentum' },
+                    { title: 'Fördelar', desc: 'Reagerar snabbare på prisändringar än vanlig MA' },
+                    { title: 'Period', desc: '50-dagars EMA är populär för medellånga trender' },
+                    { title: 'Användning', desc: 'Bra för att fånga trendförändringar tidigt' }
+                ]
+            },
+            RSI: {
+                title: 'Relative Strength Index (RSI)',
+                info: [
+                    { title: 'Vad är RSI?', desc: 'Mäter momentum och identifierar överköpta/översålda nivåer (0-100)' },
+                    { title: 'Översåld', desc: 'RSI < 30 indikerar potentiellt köpläge' },
+                    { title: 'Överköpt', desc: 'RSI > 70 indikerar potentiellt säljläge' },
+                    { title: 'Neutral', desc: 'RSI mellan 30-70 är normalt område' },
+                    { title: 'Divergens', desc: 'När RSI och pris rör sig åt olika håll kan det signalera vändning' },
+                    { title: 'Tips', desc: 'Använd tillsammans med trendindikatorer för bättre resultat' }
+                ]
+            },
+            MACD: {
+                title: 'MACD (Moving Average Convergence Divergence)',
+                info: [
+                    { title: 'MACD-linjen', desc: 'Skillnaden mellan 12-dagars och 26-dagars EMA' },
+                    { title: 'Signallinjen', desc: '9-dagars EMA av MACD-linjen' },
+                    { title: 'Histogram', desc: 'Skillnaden mellan MACD-linjen och signallinjen' },
+                    { title: 'Köpsignal', desc: 'När MACD-linjen korsar över signallinjen' },
+                    { title: 'Säljsignal', desc: 'När MACD-linjen korsar under signallinjen' },
+                    { title: 'Momentum', desc: 'Positivt histogram = uppåtgående momentum' }
+                ]
+            },
+            Bollinger: {
+                title: 'Bollinger Bands',
+                info: [
+                    { title: 'Vad är Bollinger Bands?', desc: 'Tre linjer: övre band, mittlinje (SMA), och nedre band' },
+                    { title: 'Volatilitet', desc: 'Banden expanderar vid hög volatilitet och kontraherar vid låg' },
+                    { title: 'Köpsignal', desc: 'När priset når nedre bandet kan det vara köpläge' },
+                    { title: 'Säljsignal', desc: 'När priset når övre bandet kan det vara säljläge' },
+                    { title: 'Squeeze', desc: 'När banden är smala kan en stor rörelse vara nära' },
+                    { title: 'Tips', desc: 'Kombinera med volym och trendindikatorer' }
+                ]
+            },
+            Stochastic: {
+                title: 'Stochastic Oscillator',
+                info: [
+                    { title: 'Vad är Stochastic?', desc: 'Jämför stängningspris med prisintervall över en period (0-100)' },
+                    { title: 'Översåld', desc: 'Värde < 20 indikerar potentiellt köpläge' },
+                    { title: 'Överköpt', desc: 'Värde > 80 indikerar potentiellt säljläge' },
+                    { title: 'Momentum', desc: 'Visar om köpare eller säljare kontrollerar marknaden' },
+                    { title: 'Divergens', desc: 'När Stochastic och pris divergerar kan det signalera vändning' },
+                    { title: 'Tips', desc: 'Fungerar bäst i sidledsmarknader, mindre pålitligt i starka trender' }
+                ]
+            }
+        };
+
+        // Get indicator data from sessionStorage
+        const indicatorDataStr = sessionStorage.getItem('indicatorData');
+        
+        if (!indicatorDataStr) {
+            document.getElementById('error').textContent = 'Ingen indikator-data hittades. Stäng denna sida och sök på en aktie först.';
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('chart-section').style.display = 'none';
+        } else {
+            try {
+                const data = JSON.parse(indicatorDataStr);
+                const indicator = data.indicator;
+                const type = data.type;
+                const info = indicatorInfo[type];
+                
+                // Update header
+                document.getElementById('indicatorTitle').textContent = `📈 ${info.title}`;
+                document.getElementById('stockName').textContent = `${data.name} (${data.symbol})`;
+                document.getElementById('infoTitle').textContent = `Om ${info.title}`;
+                
+                // Update info grid
+                const infoGrid = document.getElementById('infoGrid');
+                info.info.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'info-item';
+                    div.innerHTML = `<strong>${item.title}</strong>${item.desc}`;
+                    infoGrid.appendChild(div);
+                });
+                
+                // Prepare data for chart
+                const labels = indicator.timestamps.map(ts => {
+                    const date = new Date(ts * 1000);
+                    return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' });
+                });
+                
+                // Create chart based on indicator type
+                const ctx = document.getElementById('indicatorChart').getContext('2d');
+                let chart;
+                
+                if (type === 'MACD') {
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'MACD-linjen',
+                                    data: indicator.macdLine,
+                                    borderColor: 'rgb(75, 192, 192)',
+                                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Signallinjen',
+                                    data: indicator.signalLine,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Histogram',
+                                    data: indicator.histogram,
+                                    type: 'bar',
+                                    backgroundColor: indicator.histogram.map(val => val >= 0 ? 'rgba(76, 175, 80, 0.6)' : 'rgba(244, 67, 54, 0.6)'),
+                                    borderColor: indicator.histogram.map(val => val >= 0 ? 'rgb(76, 175, 80)' : 'rgb(244, 67, 54)'),
+                                    borderWidth: 1,
+                                    yAxisID: 'y1'
+                                }
+                            ]
+                        },
+                        options: getChartOptions('MACD & Signal', 'Histogram')
+                    });
+                } else if (type === 'MA' || type === 'EMA') {
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Pris',
+                                    data: indicator.prices,
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: type === 'MA' ? `${indicator.period}-dagars MA` : `${indicator.period}-dagars EMA`,
+                                    data: indicator.historical,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: getChartOptions('Pris & ' + (type === 'MA' ? 'MA' : 'EMA'), data.currency)
+                    });
+                } else if (type === 'Bollinger') {
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: 'Pris',
+                                    data: indicator.prices,
+                                    borderColor: 'rgb(54, 162, 235)',
+                                    backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Övre Band',
+                                    data: indicator.upper,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    fill: false
+                                },
+                                {
+                                    label: 'Mittlinje (SMA)',
+                                    data: indicator.middle,
+                                    borderColor: 'rgb(153, 102, 255)',
+                                    backgroundColor: 'rgba(153, 102, 255, 0.1)',
+                                    borderWidth: 1,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Nedre Band',
+                                    data: indicator.lower,
+                                    borderColor: 'rgb(255, 99, 132)',
+                                    backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    fill: false
+                                }
+                            ]
+                        },
+                        options: getChartOptions('Pris & Bollinger Bands', data.currency)
+                    });
+                } else {
+                    // RSI or Stochastic
+                    const colors = type === 'RSI' ? 
+                        { line: 'rgb(75, 192, 192)', overbought: 'rgb(244, 67, 54)', oversold: 'rgb(76, 175, 80)' } :
+                        { line: 'rgb(153, 102, 255)', overbought: 'rgb(244, 67, 54)', oversold: 'rgb(76, 175, 80)' };
+                    
+                    chart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {
+                                    label: type === 'RSI' ? 'RSI (14)' : 'Stochastic (14)',
+                                    data: indicator.historical,
+                                    borderColor: colors.line,
+                                    backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    fill: false
+                                },
+                                {
+                                    label: 'Överköpt (80)',
+                                    data: new Array(labels.length).fill(80),
+                                    borderColor: colors.overbought,
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    fill: false,
+                                    pointRadius: 0
+                                },
+                                {
+                                    label: 'Översåld (20)',
+                                    data: new Array(labels.length).fill(20),
+                                    borderColor: colors.oversold,
+                                    borderWidth: 1,
+                                    borderDash: [5, 5],
+                                    fill: false,
+                                    pointRadius: 0
+                                },
+                                ...(type === 'RSI' ? [{
+                                    label: 'Överköpt (70)',
+                                    data: new Array(labels.length).fill(70),
+                                    borderColor: colors.overbought,
+                                    borderWidth: 1,
+                                    borderDash: [2, 2],
+                                    fill: false,
+                                    pointRadius: 0
+                                }, {
+                                    label: 'Översåld (30)',
+                                    data: new Array(labels.length).fill(30),
+                                    borderColor: colors.oversold,
+                                    borderWidth: 1,
+                                    borderDash: [2, 2],
+                                    fill: false,
+                                    pointRadius: 0
+                                }] : [])
+                            ]
+                        },
+                        options: getChartOptions(type === 'RSI' ? 'RSI' : 'Stochastic', 'Värde', 0, 100)
+                    });
+                }
+                
+            } catch (error) {
+                document.getElementById('error').textContent = 'Fel vid laddning av indikator-data: ' + error.message;
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('chart-section').style.display = 'none';
+            }
+        }
+
+        function getChartOptions(yAxisLabel, currencyOrLabel, min = null, max = null) {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: yAxisLabel,
+                        font: {
+                            size: 18
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (currencyOrLabel && (context.dataset.label === 'Pris' || context.dataset.label.includes('Band') || context.dataset.label.includes('MA') || context.dataset.label.includes('EMA'))) {
+                                    label += context.parsed.y.toFixed(2) + ' ' + currencyOrLabel;
+                                } else {
+                                    label += context.parsed.y.toFixed(4);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Datum'
+                        },
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: yAxisLabel
+                        },
+                        ...(min !== null && max !== null ? { min: min, max: max } : {})
+                    },
+                    ...(yAxisLabel === 'MACD & Signal' ? {
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Histogram'
+                            },
+                            grid: {
+                                drawOnChartArea: false
+                            }
+                        }
+                    } : {})
+                }
+            };
+        }
+
+        // Clean up sessionStorage when page is closed
+        window.addEventListener('beforeunload', () => {
+            sessionStorage.removeItem('indicatorData');
+        });
+    </script>
+</body>
+</html>

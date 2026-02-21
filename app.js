@@ -324,6 +324,9 @@ async function fetchYahooFinanceData(symbol) {
       const currentBollinger = bollinger.length > 0 ? bollinger[bollinger.length - 1] : null;
       const currentStochastic = stochastic.length > 0 ? stochastic[stochastic.length - 1] : null;
       
+      // Prepare timestamps for each indicator (align with their data lengths)
+      const allTimestamps = validData.map(d => d.timestamp);
+      
       // Get signals
       const signals = {
         MA: getSignal(null, 'MA', currentPrice, currentMA50, currentMA200, null),
@@ -341,24 +344,38 @@ async function fetchYahooFinanceData(symbol) {
         currency: meta.currency || 'USD',
         indicators: {
           MA: {
-            value: currentMA200,
+            value: Math.round(currentMA200 * 100) / 100,
             signal: signals.MA,
-            label: `${ma200Period}-dagars MA`
+            label: `${ma200Period}-dagars MA`,
+            historical: ma200,
+            prices: priceCloses.slice(priceCloses.length - ma200.length),
+            timestamps: allTimestamps.slice(allTimestamps.length - ma200.length),
+            period: ma200Period
           },
           EMA: {
-            value: currentEMA50,
+            value: Math.round(currentEMA50 * 100) / 100,
             signal: signals.EMA,
-            label: `${ema50Period}-dagars EMA`
+            label: `${ema50Period}-dagars EMA`,
+            historical: ema50,
+            prices: priceCloses.slice(priceCloses.length - ema50.length),
+            timestamps: allTimestamps.slice(allTimestamps.length - ema50.length),
+            period: ema50Period
           },
           RSI: {
             value: Math.round(currentRSI * 10) / 10,
             signal: signals.RSI,
-            label: 'RSI (14)'
+            label: 'RSI (14)',
+            historical: rsi,
+            timestamps: allTimestamps.slice(allTimestamps.length - rsi.length)
           },
           MACD: {
             value: Math.round(currentMACDHist * 100) / 100,
             signal: signals.MACD,
-            label: 'MACD'
+            label: 'MACD',
+            macdLine: macd.macdLine,
+            signalLine: macd.signalLine,
+            histogram: macd.histogram,
+            timestamps: allTimestamps.slice(allTimestamps.length - macd.macdLine.length)
           },
           Bollinger: {
             value: {
@@ -367,12 +384,19 @@ async function fetchYahooFinanceData(symbol) {
               lower: Math.round(currentBollinger.lower * 100) / 100
             },
             signal: signals.Bollinger,
-            label: 'Bollinger Bands'
+            label: 'Bollinger Bands',
+            upper: bollinger.map(b => b.upper),
+            middle: bollinger.map(b => b.middle),
+            lower: bollinger.map(b => b.lower),
+            prices: priceCloses.slice(priceCloses.length - bollinger.length),
+            timestamps: allTimestamps.slice(allTimestamps.length - bollinger.length)
           },
           Stochastic: {
             value: Math.round(currentStochastic * 10) / 10,
             signal: signals.Stochastic,
-            label: 'Stochastic (14)'
+            label: 'Stochastic (14)',
+            historical: stochastic,
+            timestamps: allTimestamps.slice(allTimestamps.length - stochastic.length)
           }
         }
       };
@@ -432,8 +456,14 @@ async function fetchStockData(symbol) {
     }
 }
 
+// Store current data for MACD graph
+let currentStockData = null;
+
 // Display results
 function displayResults(data) {
+    // Store data for MACD graph
+    currentStockData = data;
+    
     // Update header
     stockNameEl.textContent = `${data.name} (${data.symbol})`;
     const currency = data.currency || 'SEK';
@@ -456,6 +486,8 @@ function displayResults(data) {
                 <div>Mellan: ${indicator.value.middle.toFixed(2)}</div>
                 <div>Nedre: ${indicator.value.lower.toFixed(2)}</div>
             `;
+        } else if (key === 'MA' || key === 'EMA') {
+            valueEl.textContent = indicator.value.toFixed(2);
         } else {
             valueEl.textContent = indicator.value;
         }
@@ -471,7 +503,39 @@ function displayResults(data) {
     document.getElementById('sellCount').textContent = sellCount;
     document.getElementById('neutralCount').textContent = neutralCount;
     
+    // Add click handlers for all indicator cards
+    Object.keys(data.indicators).forEach(key => {
+        const card = document.querySelector(`[data-indicator="${key}"]`);
+        if (card) {
+            card.style.cursor = 'pointer';
+            card.classList.add('clickable-indicator');
+            card.onclick = () => {
+                openIndicatorGraph(key, data);
+            };
+        }
+    });
+    
     showResults();
+}
+
+// Open indicator graph in new window
+function openIndicatorGraph(indicatorType, data) {
+    // Store indicator data in sessionStorage
+    const indicatorData = {
+        type: indicatorType,
+        symbol: data.symbol,
+        name: data.name,
+        currency: data.currency || 'USD',
+        indicator: data.indicators[indicatorType]
+    };
+    
+    sessionStorage.setItem('indicatorData', JSON.stringify(indicatorData));
+    
+    // Open new window
+    const graphWindow = window.open('indicator-graph.html', '_blank', 'width=1200,height=800');
+    if (!graphWindow) {
+        alert('Popups blockerades. Tillåt popups för denna sida för att se grafen.');
+    }
 }
 
 // UI helpers

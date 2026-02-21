@@ -203,6 +203,12 @@ header h1 {
     box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
 }
 
+.indicator-card.clickable-indicator:hover {
+    background: #f0f0f0;
+    border-color: #667eea;
+    transform: translateY(-5px);
+}
+
 .indicator-header {
     display: flex;
     justify-content: space-between;
