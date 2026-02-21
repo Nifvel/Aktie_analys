@@ -588,3 +588,38 @@ document.querySelectorAll('.stock-btn').forEach(btn => {
         fetchStockData(symbol);
     });
 });
+
+// Disclaimer Modal
+function showDisclaimer() {
+    // Check if disclaimer has been accepted in this session
+    const disclaimerAccepted = sessionStorage.getItem('disclaimerAccepted');
+    
+    if (!disclaimerAccepted) {
+        const modal = document.getElementById('disclaimerModal');
+        modal.classList.add('show');
+        
+        // Prevent scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+        
+        // Accept button handler
+        document.getElementById('acceptDisclaimer').addEventListener('click', () => {
+            sessionStorage.setItem('disclaimerAccepted', 'true');
+            modal.classList.remove('show');
+            document.body.style.overflow = 'auto';
+        });
+        
+        // Close on outside click (optional)
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                sessionStorage.setItem('disclaimerAccepted', 'true');
+                modal.classList.remove('show');
+                document.body.style.overflow = 'auto';
+            }
+        });
+    }
+}
+
+// Show disclaimer when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    showDisclaimer();
+});
