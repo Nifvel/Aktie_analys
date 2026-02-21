@@ -1,0 +1,10 @@
+{
+  "name": "aktie-analys",
+  "version": "1.0.0",
+  "description": "Stock analysis web app with technical indicators",
+  "main": "index.html",
+  "scripts": {},
+  "keywords": ["stock", "analysis", "indicators"],
+  "author": "",
+  "license": "ISC"
+}

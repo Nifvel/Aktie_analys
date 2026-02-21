@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aktie Analys - Tekniska Indikatorer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📈 Aktie Analys</h1>
+            <p class="subtitle">Tekniska indikatorer för aktieanalys</p>
+        </header>
+
+        <div class="search-section">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="stockSymbol" 
+                    placeholder="Ange aktiesymbol (t.ex. AAPL, TSLA, VOLV-B.ST)"
+                    autocomplete="off"
+                >
+                <button id="searchBtn">Sök</button>
+            </div>
+            <div class="popular-stocks">
+                <span class="label">Populära aktier:</span>
+                <button class="stock-btn" data-symbol="AAPL">AAPL</button>
+                <button class="stock-btn" data-symbol="TSLA">TSLA</button>
+                <button class="stock-btn" data-symbol="MSFT">MSFT</button>
+                <button class="stock-btn" data-symbol="VOLV-B.ST">VOLV-B</button>
+                <button class="stock-btn" data-symbol="ERIC.ST">ERIC</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Laddar data...</p>
+        </div>
+
+        <div id="error" class="error hidden"></div>
+
+        <div id="results" class="results hidden">
+            <div class="stock-header">
+                <h2 id="stockName"></h2>
+                <div class="price">
+                    <span class="price-label">Aktuellt pris:</span>
+                    <span id="currentPrice" class="price-value"></span>
+                </div>
+            </div>
+
+            <div class="indicators-grid">
+                <div class="indicator-card" data-indicator="MA">
+                    <div class="indicator-header">
+                        <h3>Glidande Medelvärde (MA)</h3>
+                        <span class="signal-icon" id="signal-MA"></span>
+                    </div>
+                    <div class="indicator-value" id="value-MA"></div>
+                    <div class="indicator-label">200-dagars MA</div>
+                    <div class="indicator-description">
+                        Köp: Pris över MA<br>
+                        Sälj: Pris under MA
+                    </div>
+                </div>
+
+                <div class="indicator-card" data-indicator="EMA">
+                    <div class="indicator-header">
+                        <h3>Exponentiellt Medelvärde (EMA)</h3>
+                        <span class="signal-icon" id="signal-EMA"></span>
+                    </div>
+                    <div class="indicator-value" id="value-EMA"></div>
+                    <div class="indicator-label">50-dagars EMA</div>
+                    <div class="indicator-description">
+                        Köp: Pris över EMA<br>
+                        Sälj: Pris under EMA
+                    </div>
+                </div>
+
+                <div class="indicator-card" data-indicator="RSI">
+                    <div class="indicator-header">
+                        <h3>Relative Strength Index (RSI)</h3>
+                        <span class="signal-icon" id="signal-RSI"></span>
+                    </div>
+                    <div class="indicator-value" id="value-RSI"></div>
+                    <div class="indicator-label">RSI (14)</div>
+                    <div class="indicator-description">
+                        Köp: RSI &lt; 30 (översåld)<br>
+                        Sälj: RSI &gt; 70 (överköpt)
+                    </div>
+                </div>
+
+                <div class="indicator-card" data-indicator="MACD">
+                    <div class="indicator-header">
+                        <h3>MACD</h3>
+                        <span class="signal-icon" id="signal-MACD"></span>
+                    </div>
+                    <div class="indicator-value" id="value-MACD"></div>
+                    <div class="indicator-label">MACD Histogram</div>
+                    <div class="indicator-description">
+                        Köp: MACD över signallinjen<br>
+                        Sälj: MACD under signallinjen
+                    </div>
+                </div>
+
+                <div class="indicator-card" data-indicator="Bollinger">
+                    <div class="indicator-header">
+                        <h3>Bollinger Bands</h3>
+                        <span class="signal-icon" id="signal-Bollinger"></span>
+                    </div>
+                    <div class="indicator-value" id="value-Bollinger"></div>
+                    <div class="indicator-label">Bollinger Bands (20, 2)</div>
+                    <div class="indicator-description">
+                        Köp: Pris vid nedre band<br>
+                        Sälj: Pris vid övre band
+                    </div>
+                </div>
+
+                <div class="indicator-card" data-indicator="Stochastic">
+                    <div class="indicator-header">
+                        <h3>Stochastic Oscillator</h3>
+                        <span class="signal-icon" id="signal-Stochastic"></span>
+                    </div>
+                    <div class="indicator-value" id="value-Stochastic"></div>
+                    <div class="indicator-label">Stochastic (14)</div>
+                    <div class="indicator-description">
+                        Köp: &lt; 20 (översåld)<br>
+                        Sälj: &gt; 80 (överköpt)
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary">
+                <h3>Sammanfattning</h3>
+                <div class="summary-stats">
+                    <div class="summary-item buy">
+                        <span class="summary-count" id="buyCount">0</span>
+                        <span class="summary-label">Köpsignaler</span>
+                    </div>
+                    <div class="summary-item sell">
+                        <span class="summary-count" id="sellCount">0</span>
+                        <span class="summary-label">Säljsignaler</span>
+                    </div>
+                    <div class="summary-item neutral">
+                        <span class="summary-count" id="neutralCount">0</span>
+                        <span class="summary-label">Neutrala</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
