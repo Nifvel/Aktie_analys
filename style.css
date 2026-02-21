@@ -472,6 +472,19 @@ header h1 {
     }
 }
 
+.data-source {
+    text-align: center;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.data-source p {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.85rem;
+    margin: 0;
+}
+
 @media (max-width: 768px) {
     header h1 {
         font-size: 2rem;
