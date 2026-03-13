@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indikator Graf - Detaljerad Analys</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="vendor/chart.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -223,8 +223,8 @@
             }
         };
 
-        // Get indicator data from sessionStorage
-        const indicatorDataStr = sessionStorage.getItem('indicatorData');
+        // Get indicator data from localStorage (delas mellan flikar; sessionStorage gör det inte)
+        const indicatorDataStr = localStorage.getItem('indicatorData');
         
         if (!indicatorDataStr) {
             document.getElementById('error').textContent = 'Ingen indikator-data hittades. Stäng denna sida och sök på en aktie först.';
@@ -516,9 +516,9 @@
             };
         }
 
-        // Clean up sessionStorage when page is closed
+        // Clean up localStorage when page is closed
         window.addEventListener('beforeunload', () => {
-            sessionStorage.removeItem('indicatorData');
+            localStorage.removeItem('indicatorData');
         });
     </script>
 </body>

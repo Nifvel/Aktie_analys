@@ -2,9 +2,18 @@
   "name": "aktie-analys",
   "version": "1.0.0",
   "description": "Stock analysis web app with technical indicators",
-  "main": "index.html",
-  "scripts": {},
-  "keywords": ["stock", "analysis", "indicators"],
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [
+    "stock",
+    "analysis",
+    "indicators"
+  ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
 }

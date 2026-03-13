@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Signaler över tid - Aktie Analys</title>
+    <script src="vendor/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        header h1 {
+            font-size: 1.8rem;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        header h2 {
+            font-size: 1.1rem;
+            color: #666;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        .legend-color.buy { background: #4caf50; }
+        .legend-color.sell { background: #f44336; }
+        .legend-color.neutral { background: #ffc107; }
+
+        .chart-container {
+            position: relative;
+            height: 420px;
+            margin-bottom: 20px;
+        }
+
+        .data-source {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .data-source p {
+            color: #999;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid #c62828;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .close-btn:hover {
+            background: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="close-btn" onclick="window.close()">Stäng</button>
+        <header>
+            <h1>📊 Signaler över tid</h1>
+            <h2 id="stockName">Laddar...</h2>
+        </header>
+
+        <div id="error" class="error hidden"></div>
+
+        <div id="chart-section">
+            <div class="legend">
+                <div class="legend-item">
+                    <span class="legend-color buy"></span>
+                    <span>Köp</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color sell"></span>
+                    <span>Sälj</span>
+                </div>
+                <div class="legend-item">
+                    <span class="legend-color neutral"></span>
+                    <span>Neutral</span>
+                </div>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="timelineChart"></canvas>
+            </div>
+
+            <footer class="data-source">
+                <p>Datakälla: Yahoo Finance</p>
+            </footer>
+        </div>
+    </div>
+
+    <script>
+        const SIGNAL_COLORS = { buy: '#4caf50', sell: '#f44336', neutral: '#ffc107' };
+
+        function getSignalAt(indicatorKey, ind, i) {
+            switch (indicatorKey) {
+                case 'MA':
+                    const maP = ind.prices[i], maV = ind.historical[i];
+                    return maP > maV ? 'buy' : maP < maV ? 'sell' : 'neutral';
+                case 'EMA':
+                    const emaP = ind.prices[i], emaV = ind.historical[i];
+                    return emaP > emaV ? 'buy' : emaP < emaV ? 'sell' : 'neutral';
+                case 'RSI':
+                    const r = ind.historical[i];
+                    return r > 70 ? 'sell' : r < 30 ? 'buy' : 'neutral';
+                case 'MACD':
+                    const h = ind.histogram[i];
+                    return h > 0 ? 'buy' : h < 0 ? 'sell' : 'neutral';
+                case 'Bollinger':
+                    const bp = ind.prices[i], bu = ind.upper[i], bl = ind.lower[i];
+                    if (bu === bl) return 'neutral';
+                    const pos = (bp - bl) / (bu - bl);
+                    return pos < 0.2 ? 'buy' : pos > 0.8 ? 'sell' : 'neutral';
+                case 'Stochastic':
+                    const s = ind.historical[i];
+                    return s > 80 ? 'sell' : s < 20 ? 'buy' : 'neutral';
+                default:
+                    return 'neutral';
+            }
+        }
+
+        const indicatorOrder = ['MA', 'EMA', 'RSI', 'MACD', 'Bollinger', 'Stochastic'];
+        const indicatorLabels = {
+            MA: 'MA',
+            EMA: 'EMA',
+            RSI: 'RSI',
+            MACD: 'MACD',
+            Bollinger: 'Bollinger',
+            Stochastic: 'Stochastic'
+        };
+
+        const dataStr = localStorage.getItem('timelineStockData');
+        if (!dataStr) {
+            document.getElementById('error').textContent = 'Ingen data. Stäng denna sida och sök på en aktie, klicka sedan på "Se signaler över tid".';
+            document.getElementById('error').classList.remove('hidden');
+            document.getElementById('chart-section').style.display = 'none';
+        } else {
+            try {
+                const data = JSON.parse(dataStr);
+                document.getElementById('stockName').textContent = `${data.name} (${data.symbol})`;
+
+                const inds = data.indicators;
+                const lengths = indicatorOrder.map(k => {
+                    if (k === 'MACD') return inds.MACD.histogram.length;
+                    if (k === 'Bollinger') return inds.Bollinger.prices.length;
+                    return (inds[k].historical || inds[k].prices || []).length;
+                });
+                const N = Math.min(...lengths);
+                if (N === 0) throw new Error('Otillräcklig data för tidslinje');
+
+                const dates = inds.MACD && inds.MACD.timestamps
+                    ? inds.MACD.timestamps.slice(-N).map(ts => new Date(ts * 1000).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' }))
+                    : Array.from({ length: N }, (_, i) => 'D' + (i + 1));
+
+                const signalMatrix = indicatorOrder.map(key => {
+                    const ind = inds[key];
+                    const start = (key === 'MACD' ? ind.histogram.length : (key === 'Bollinger' ? ind.prices.length : ind.historical.length)) - N;
+                    return Array.from({ length: N }, (_, i) => getSignalAt(key, ind, start + i));
+                });
+
+                const datasets = [];
+                for (let d = 0; d < N; d++) {
+                    const colors = indicatorOrder.map((_, row) => SIGNAL_COLORS[signalMatrix[row][d]]);
+                    datasets.push({
+                        label: dates[d],
+                        data: [1, 1, 1, 1, 1, 1],
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                        stack: 'timeline'
+                    });
+                }
+
+                new Chart(document.getElementById('timelineChart').getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: indicatorOrder.map(k => indicatorLabels[k]),
+                        datasets: datasets
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Indikatorsignaler per dag (y = indikator, x = datum)',
+                                font: { size: 14 }
+                            },
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    boxWidth: 12,
+                                    font: { size: 10 },
+                                    padding: 8
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    title: function(items) {
+                                        const idx = items[0].datasetIndex;
+                                        return dates[idx] || '';
+                                    },
+                                    label: function(ctx) {
+                                        const dayIdx = ctx.datasetIndex;
+                                        const indIdx = ctx.dataIndex;
+                                        const sig = signalMatrix[indIdx][dayIdx];
+                                        return indicatorOrder[indIdx] + ': ' + (sig === 'buy' ? 'Köp' : sig === 'sell' ? 'Sälj' : 'Neutral');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                display: true,
+                                title: { display: true, text: 'Datum' },
+                                ticks: {
+                                    maxTicksLimit: 25,
+                                    callback: function(val) {
+                                        const i = Math.round(val);
+                                        if (i < 0 || i >= dates.length) return '';
+                                        if (N > 30 && i % Math.ceil(N / 20) !== 0 && i !== dates.length - 1) return '';
+                                        return dates[i];
+                                    }
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                display: true,
+                                title: { display: true, text: 'Indikator' }
+                            }
+                        }
+                    }
+                });
+            } catch (err) {
+                document.getElementById('error').textContent = 'Kunde inte rita grafen: ' + err.message;
+                document.getElementById('error').classList.remove('hidden');
+                document.getElementById('chart-section').style.display = 'none';
+            }
+        }
+
+        window.addEventListener('beforeunload', () => localStorage.removeItem('timelineStockData'));
+    </script>
+</body>
+</html>

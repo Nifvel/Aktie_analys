@@ -188,238 +188,183 @@ function getSignal(value, indicator, currentPrice, ma50, ma200, bollingerBands) 
   }
 }
 
-// Fetch stock data from Yahoo Finance
+// Fetch stock data from Yahoo Finance via backend proxy
 async function fetchYahooFinanceData(symbol) {
-  // Try multiple CORS proxies in case one is down
-  const corsProxies = [
-    { url: 'https://api.allorigins.win/raw?url=', name: 'AllOrigins' },
-    { url: 'https://corsproxy.io/?', name: 'CorsProxy' },
-    { url: 'https://api.codetabs.com/v1/proxy?quest=', name: 'CodeTabs' }
-  ];
-  
-  // Get historical data (1 year to ensure we have enough trading days)
-  const baseUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1y`;
-  
-  let lastError = null;
-  
-  // Try each proxy
-  for (let i = 0; i < corsProxies.length; i++) {
-    try {
-      const proxy = corsProxies[i];
-      let historicalUrl;
-      
-      if (i === 2) {
-        // codetabs proxy uses different format
-        historicalUrl = `${proxy.url}${encodeURIComponent(baseUrl)}`;
-      } else {
-        historicalUrl = `${proxy.url}${encodeURIComponent(baseUrl)}`;
-      }
-      
-      console.log(`Försöker hämta data med ${proxy.name} proxy...`);
-      console.log(`URL: ${historicalUrl.substring(0, 100)}...`);
-      
-      // Fetch historical data (contains both quote and historical)
-      // Create timeout manually for better browser compatibility
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const historicalResponse = await fetch(historicalUrl, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!historicalResponse.ok) {
-        const errorText = await historicalResponse.text().catch(() => '');
-        console.error(`${proxy.name} svarade med status: ${historicalResponse.status}`);
-        console.error(`Felmeddelande: ${errorText.substring(0, 200)}`);
-        lastError = new Error(`HTTP ${historicalResponse.status}: Kunde inte hämta data från ${proxy.name}`);
-        continue; // Try next proxy
-      }
-      
-      const text = await historicalResponse.text();
-      console.log('Mottagen data (första 200 tecken):', text.substring(0, 200));
-      
-      let historicalData;
+  try {
+    // Hämta rå CHART-data från vår Node/Express-backend (ingen CORS-proxy behövs)
+    const response = await fetch(`/api/chart/${encodeURIComponent(symbol)}`);
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      let message = `Status ${response.status}`;
       try {
-        historicalData = JSON.parse(text);
-      } catch (parseError) {
-        console.error('JSON parse error:', parseError);
-        console.error('Response text:', text.substring(0, 500));
-        lastError = new Error('Kunde inte tolka data från Yahoo Finance');
-        continue; // Try next proxy
+        const errJson = JSON.parse(text);
+        if (errJson && errJson.error) message = errJson.error;
+      } catch (_) {
+        if (text) message = text.substring(0, 200);
       }
-      
-      // If we get here, we successfully got data
-      console.log('Data hämtad framgångsrikt!');
-    
-      // Extract data from Yahoo Finance response
-      const historicalResult = historicalData.chart?.result?.[0];
-      
-      if (!historicalResult) {
-        console.error('Ingen result i response:', historicalData);
-        lastError = new Error('Ingen data hittades för denna symbol');
-        continue; // Try next proxy
-      }
-    
-      const meta = historicalResult.meta;
-      const timestamps = historicalResult.timestamp || [];
-      const closes = historicalResult.indicators?.quote?.[0]?.close || [];
-      const highs = historicalResult.indicators?.quote?.[0]?.high || [];
-      const lows = historicalResult.indicators?.quote?.[0]?.low || [];
-      
-      console.log(`Hittade ${closes.length} datapunkter`);
-      
-      // Filter out null values and align arrays
-      const validData = [];
-      for (let i = 0; i < closes.length; i++) {
-        if (closes[i] !== null && highs[i] !== null && lows[i] !== null) {
-          validData.push({
-            close: closes[i],
-            high: highs[i],
-            low: lows[i],
-            timestamp: timestamps[i]
-          });
-        }
-      }
-      
-      console.log(`Efter filtrering: ${validData.length} giltiga datapunkter`);
-      
-      if (validData.length < 50) {
-        throw new Error(`Otillräckligt med historisk data. Hittade bara ${validData.length} dagar. Behöver minst 50 dagar för grundläggande analys.`);
-      }
-      
-      // Extract price arrays (oldest to newest)
-      const priceCloses = validData.map(d => d.close);
-      const priceHighs = validData.map(d => d.high);
-      const priceLows = validData.map(d => d.low);
-      const currentPrice = priceCloses[priceCloses.length - 1];
-      
-      // Calculate indicators with adaptive periods based on available data
-      const dataLength = priceCloses.length;
-      
-      // Use shorter periods if we don't have enough data
-      const ma50Period = dataLength >= 50 ? 50 : Math.floor(dataLength * 0.5);
-      const ma200Period = dataLength >= 200 ? 200 : (dataLength >= 100 ? 100 : Math.floor(dataLength * 0.8));
-      const ema50Period = dataLength >= 50 ? 50 : Math.floor(dataLength * 0.5);
-      
-      const ma50 = calculateSMA(priceCloses, ma50Period);
-      const ma200 = calculateSMA(priceCloses, ma200Period);
-      const ema50 = calculateEMA(priceCloses, ema50Period);
-      const rsi = calculateRSI(priceCloses, 14);
-      const macd = calculateMACD(priceCloses);
-      const bollinger = calculateBollingerBands(priceCloses, 20, 2);
-      const stochastic = calculateStochastic(priceHighs, priceLows, priceCloses, 14);
-      
-      // Get current values
-      const currentMA50 = ma50.length > 0 ? ma50[ma50.length - 1] : null;
-      const currentMA200 = ma200.length > 0 ? ma200[ma200.length - 1] : null;
-      const currentEMA50 = ema50.length > 0 ? ema50[ema50.length - 1] : null;
-      const currentRSI = rsi.length > 0 ? rsi[rsi.length - 1] : null;
-      const currentMACDHist = macd.histogram.length > 0 ? macd.histogram[macd.histogram.length - 1] : null;
-      const currentBollinger = bollinger.length > 0 ? bollinger[bollinger.length - 1] : null;
-      const currentStochastic = stochastic.length > 0 ? stochastic[stochastic.length - 1] : null;
-      
-      // Prepare timestamps for each indicator (align with their data lengths)
-      const allTimestamps = validData.map(d => d.timestamp);
-      
-      // Get signals
-      const signals = {
-        MA: getSignal(null, 'MA', currentPrice, currentMA50, currentMA200, null),
-        EMA: getSignal(null, 'EMA', currentPrice, currentMA50, currentMA200, null),
-        RSI: getSignal(currentRSI, 'RSI', currentPrice, null, null, null),
-        MACD: getSignal(currentMACDHist, 'MACD', currentPrice, null, null, null),
-        Bollinger: getSignal(null, 'Bollinger', currentPrice, null, null, currentBollinger),
-        Stochastic: getSignal(currentStochastic, 'Stochastic', currentPrice, null, null, null)
-      };
-      
-      return {
-        symbol: symbol,
-        name: meta.longName || meta.shortName || symbol,
-        currentPrice: currentPrice,
-        currency: meta.currency || 'USD',
-        indicators: {
-          MA: {
-            value: Math.round(currentMA200 * 100) / 100,
-            signal: signals.MA,
-            label: `${ma200Period}-dagars MA`,
-            historical: ma200,
-            prices: priceCloses.slice(priceCloses.length - ma200.length),
-            timestamps: allTimestamps.slice(allTimestamps.length - ma200.length),
-            period: ma200Period
-          },
-          EMA: {
-            value: Math.round(currentEMA50 * 100) / 100,
-            signal: signals.EMA,
-            label: `${ema50Period}-dagars EMA`,
-            historical: ema50,
-            prices: priceCloses.slice(priceCloses.length - ema50.length),
-            timestamps: allTimestamps.slice(allTimestamps.length - ema50.length),
-            period: ema50Period
-          },
-          RSI: {
-            value: Math.round(currentRSI * 10) / 10,
-            signal: signals.RSI,
-            label: 'RSI (14)',
-            historical: rsi,
-            timestamps: allTimestamps.slice(allTimestamps.length - rsi.length)
-          },
-          MACD: {
-            value: Math.round(currentMACDHist * 100) / 100,
-            signal: signals.MACD,
-            label: 'MACD',
-            macdLine: macd.macdLine,
-            signalLine: macd.signalLine,
-            histogram: macd.histogram,
-            timestamps: allTimestamps.slice(allTimestamps.length - macd.macdLine.length)
-          },
-          Bollinger: {
-            value: {
-              upper: Math.round(currentBollinger.upper * 100) / 100,
-              middle: Math.round(currentBollinger.middle * 100) / 100,
-              lower: Math.round(currentBollinger.lower * 100) / 100
-            },
-            signal: signals.Bollinger,
-            label: 'Bollinger Bands',
-            upper: bollinger.map(b => b.upper),
-            middle: bollinger.map(b => b.middle),
-            lower: bollinger.map(b => b.lower),
-            prices: priceCloses.slice(priceCloses.length - bollinger.length),
-            timestamps: allTimestamps.slice(allTimestamps.length - bollinger.length)
-          },
-          Stochastic: {
-            value: Math.round(currentStochastic * 10) / 10,
-            signal: signals.Stochastic,
-            label: 'Stochastic (14)',
-            historical: stochastic,
-            timestamps: allTimestamps.slice(allTimestamps.length - stochastic.length)
-          }
-        }
-      };
-      
-    } catch (error) {
-      console.error(`${proxy.name} misslyckades:`, error);
-      console.error(`Feltyp: ${error.name}, Meddelande: ${error.message}`);
-      if (error.name === 'AbortError') {
-        lastError = new Error('Timeout: Förfrågan tog för lång tid');
-      } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        lastError = new Error(`Nätverksfel: Kunde inte nå ${proxy.name}. Kontrollera din internetanslutning.`);
-      } else {
-        lastError = error;
-      }
-      // Continue to next proxy
-      continue;
+      throw new Error(message);
     }
+
+    const historicalData = await response.json();
+
+    // Extract data from Yahoo Finance response (samma struktur som tidigare)
+    const historicalResult = historicalData.chart?.result?.[0];
+
+    if (!historicalResult) {
+      throw new Error('Ingen data hittades för denna symbol');
+    }
+
+    const meta = historicalResult.meta;
+    const timestamps = historicalResult.timestamp || [];
+    const closes = historicalResult.indicators?.quote?.[0]?.close || [];
+    const highs = historicalResult.indicators?.quote?.[0]?.high || [];
+    const lows = historicalResult.indicators?.quote?.[0]?.low || [];
+
+    console.log(`Hittade ${closes.length} datapunkter`);
+
+    // Filter out null values and align arrays
+    const validData = [];
+    for (let i = 0; i < closes.length; i++) {
+      if (closes[i] !== null && highs[i] !== null && lows[i] !== null) {
+        validData.push({
+          close: closes[i],
+          high: highs[i],
+          low: lows[i],
+          timestamp: timestamps[i]
+        });
+      }
+    }
+
+    console.log(`Efter filtrering: ${validData.length} giltiga datapunkter`);
+
+    if (validData.length < 50) {
+      throw new Error(
+        `Otillräckligt med historisk data. Hittade bara ${validData.length} dagar. Behöver minst 50 dagar för grundläggande analys.`
+      );
+    }
+
+    // Extract price arrays (oldest to newest)
+    const priceCloses = validData.map((d) => d.close);
+    const priceHighs = validData.map((d) => d.high);
+    const priceLows = validData.map((d) => d.low);
+    const currentPrice = priceCloses[priceCloses.length - 1];
+
+    // Calculate indicators with adaptive periods based on available data
+    const dataLength = priceCloses.length;
+
+    // Use shorter periods if we don't have enough data
+    const ma50Period = dataLength >= 50 ? 50 : Math.floor(dataLength * 0.5);
+    const ma200Period =
+      dataLength >= 200 ? 200 : dataLength >= 100 ? 100 : Math.floor(dataLength * 0.8);
+    const ema50Period = dataLength >= 50 ? 50 : Math.floor(dataLength * 0.5);
+
+    const ma50 = calculateSMA(priceCloses, ma50Period);
+    const ma200 = calculateSMA(priceCloses, ma200Period);
+    const ema50 = calculateEMA(priceCloses, ema50Period);
+    const rsi = calculateRSI(priceCloses, 14);
+    const macd = calculateMACD(priceCloses);
+    const bollinger = calculateBollingerBands(priceCloses, 20, 2);
+    const stochastic = calculateStochastic(priceHighs, priceLows, priceCloses, 14);
+
+    // Get current values
+    const currentMA50 = ma50.length > 0 ? ma50[ma50.length - 1] : null;
+    const currentMA200 = ma200.length > 0 ? ma200[ma200.length - 1] : null;
+    const currentEMA50 = ema50.length > 0 ? ema50[ema50.length - 1] : null;
+    const currentRSI = rsi.length > 0 ? rsi[rsi.length - 1] : null;
+    const currentMACDHist =
+      macd.histogram.length > 0 ? macd.histogram[macd.histogram.length - 1] : null;
+    const currentBollinger =
+      bollinger.length > 0 ? bollinger[bollinger.length - 1] : null;
+    const currentStochastic =
+      stochastic.length > 0 ? stochastic[stochastic.length - 1] : null;
+
+    // Prepare timestamps for each indicator (align with their data lengths)
+    const allTimestamps = validData.map((d) => d.timestamp);
+
+    // Get signals
+    const signals = {
+      MA: getSignal(null, 'MA', currentPrice, currentMA50, currentMA200, null),
+      EMA: getSignal(null, 'EMA', currentPrice, currentMA50, currentMA200, null),
+      RSI: getSignal(currentRSI, 'RSI', currentPrice, null, null, null),
+      MACD: getSignal(currentMACDHist, 'MACD', currentPrice, null, null, null),
+      Bollinger: getSignal(null, 'Bollinger', currentPrice, null, null, currentBollinger),
+      Stochastic: getSignal(
+        currentStochastic,
+        'Stochastic',
+        currentPrice,
+        null,
+        null,
+        null
+      )
+    };
+
+    return {
+      symbol: symbol,
+      name: meta.longName || meta.shortName || symbol,
+      currentPrice: currentPrice,
+      currency: meta.currency || 'USD',
+      indicators: {
+        MA: {
+          value: Math.round(currentMA200 * 100) / 100,
+          signal: signals.MA,
+          label: `${ma200Period}-dagars MA`,
+          historical: ma200,
+          prices: priceCloses.slice(priceCloses.length - ma200.length),
+          timestamps: allTimestamps.slice(allTimestamps.length - ma200.length),
+          period: ma200Period
+        },
+        EMA: {
+          value: Math.round(currentEMA50 * 100) / 100,
+          signal: signals.EMA,
+          label: `${ema50Period}-dagars EMA`,
+          historical: ema50,
+          prices: priceCloses.slice(priceCloses.length - ema50.length),
+          timestamps: allTimestamps.slice(allTimestamps.length - ema50.length),
+          period: ema50Period
+        },
+        RSI: {
+          value: Math.round(currentRSI * 10) / 10,
+          signal: signals.RSI,
+          label: 'RSI (14)',
+          historical: rsi,
+          timestamps: allTimestamps.slice(allTimestamps.length - rsi.length)
+        },
+        MACD: {
+          value: Math.round(currentMACDHist * 100) / 100,
+          signal: signals.MACD,
+          label: 'MACD',
+          macdLine: macd.macdLine,
+          signalLine: macd.signalLine,
+          histogram: macd.histogram,
+          timestamps: allTimestamps.slice(allTimestamps.length - macd.macdLine.length)
+        },
+        Bollinger: {
+          value: {
+            upper: Math.round(currentBollinger.upper * 100) / 100,
+            middle: Math.round(currentBollinger.middle * 100) / 100,
+            lower: Math.round(currentBollinger.lower * 100) / 100
+          },
+          signal: signals.Bollinger,
+          label: 'Bollinger Bands',
+          upper: bollinger.map((b) => b.upper),
+          middle: bollinger.map((b) => b.middle),
+          lower: bollinger.map((b) => b.lower),
+          prices: priceCloses.slice(priceCloses.length - bollinger.length),
+          timestamps: allTimestamps.slice(allTimestamps.length - bollinger.length)
+        },
+        Stochastic: {
+          value: Math.round(currentStochastic * 10) / 10,
+          signal: signals.Stochastic,
+          label: 'Stochastic (14)',
+          historical: stochastic,
+          timestamps: allTimestamps.slice(allTimestamps.length - stochastic.length)
+        }
+      }
+    };
+  } catch (error) {
+    throw new Error('Fel vid hämtning av data: ' + error.message);
   }
-  
-  // If we get here, all proxies failed
-  console.error('Alla proxies misslyckades. Sista felet:', lastError);
-  const errorMsg = lastError?.message || 'Okänt fel';
-  throw new Error(`Kunde inte hämta data från Yahoo Finance. ${errorMsg} Försök igen senare eller kontrollera att symbolen är korrekt.`);
 }
 
 // DOM elements
@@ -514,6 +459,19 @@ function displayResults(data) {
             };
         }
     });
+
+    // Timeline link: save full stock data so timeline page can read it
+    const timelineLink = document.getElementById('timelineLink');
+    if (timelineLink) {
+        timelineLink.onclick = (e) => {
+            if (!currentStockData) {
+                e.preventDefault();
+                alert('Ingen data att visa. Sök på en aktie först.');
+                return;
+            }
+            localStorage.setItem('timelineStockData', JSON.stringify(currentStockData));
+        };
+    }
     
     showResults();
 }
@@ -529,7 +487,7 @@ function openIndicatorGraph(indicatorType, data) {
         indicator: data.indicators[indicatorType]
     };
     
-    sessionStorage.setItem('indicatorData', JSON.stringify(indicatorData));
+    localStorage.setItem('indicatorData', JSON.stringify(indicatorData));
     
     // Open new window
     const graphWindow = window.open('indicator-graph.html', '_blank', 'width=1200,height=800');

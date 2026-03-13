@@ -263,6 +263,32 @@ header h1 {
     border-top: 1px solid #e0e0e0;
 }
 
+.timeline-link-section {
+    text-align: center;
+    margin: 25px 0;
+}
+
+.timeline-link {
+    display: inline-block;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    text-decoration: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.timeline-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.timeline-link:active {
+    transform: translateY(0);
+}
+
 .summary {
     background: #f8f9fa;
     border-radius: 12px;
