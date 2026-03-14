@@ -77,6 +77,11 @@
             margin-bottom: 20px;
         }
 
+        .price-chart {
+            height: 320px;
+            margin-top: 30px;
+        }
+
         .data-source {
             text-align: center;
             margin-top: 20px;
@@ -146,6 +151,10 @@
 
             <div class="chart-container">
                 <canvas id="timelineChart"></canvas>
+            </div>
+
+            <div class="chart-container price-chart">
+                <canvas id="priceChart"></canvas>
             </div>
 
             <footer class="data-source">
@@ -219,7 +228,11 @@
 
                 const signalMatrix = indicatorOrder.map(key => {
                     const ind = inds[key];
-                    const start = (key === 'MACD' ? ind.histogram.length : (key === 'Bollinger' ? ind.prices.length : ind.historical.length)) - N;
+                    const start = (key === 'MACD'
+                        ? ind.histogram.length
+                        : (key === 'Bollinger'
+                            ? ind.prices.length
+                            : ind.historical.length)) - N;
                     return Array.from({ length: N }, (_, i) => getSignalAt(key, ind, start + i));
                 });
 
@@ -235,6 +248,25 @@
                     });
                 }
 
+                // Gemensam x-axelkonfiguration så första/sista datum synkar mellan graferna
+                const xScaleOpt = {
+                                    min: 0,
+                                    max: N - 1,
+                                    offset: true,
+                                    display: true,
+                                    title: { display: true, text: 'Datum' },
+                                    ticks: {
+                                        maxTicksLimit: 25,
+                                        callback: function(val) {
+                                            const i = Math.round(val);
+                                            if (i < 0 || i >= dates.length) return '';
+                                            if (N > 30 && i % Math.ceil(N / 20) !== 0 && i !== dates.length - 1) return '';
+                                            return dates[i];
+                                        }
+                                    }
+                                };
+
+                // Graf 1: signaler över tid (befintlig)
                 new Chart(document.getElementById('timelineChart').getContext('2d'), {
                     type: 'bar',
                     data: {
@@ -245,6 +277,7 @@
                         indexAxis: 'y',
                         responsive: true,
                         maintainAspectRatio: false,
+                        layout: { padding: { left: 24, right: 24 } },
                         plugins: {
                             title: {
                                 display: true,
@@ -276,20 +309,7 @@
                             }
                         },
                         scales: {
-                            x: {
-                                stacked: true,
-                                display: true,
-                                title: { display: true, text: 'Datum' },
-                                ticks: {
-                                    maxTicksLimit: 25,
-                                    callback: function(val) {
-                                        const i = Math.round(val);
-                                        if (i < 0 || i >= dates.length) return '';
-                                        if (N > 30 && i % Math.ceil(N / 20) !== 0 && i !== dates.length - 1) return '';
-                                        return dates[i];
-                                    }
-                                }
-                            },
+                            x: { ...xScaleOpt, stacked: true },
                             y: {
                                 stacked: true,
                                 display: true,
@@ -298,6 +318,76 @@
                         }
                     }
                 });
+
+                // Graf 2: pris över tid
+                // För pris använder vi samma längd N och samma datumetiketter.
+                // Vi tar prisserien från Bollinger (eller fallback till MA/EMA om det skulle saknas).
+                let priceSource = inds.Bollinger && inds.Bollinger.prices && inds.Bollinger.prices.length
+                    ? inds.Bollinger.prices
+                    : (inds.MA && inds.MA.prices && inds.MA.prices.length
+                        ? inds.MA.prices
+                        : (inds.EMA && inds.EMA.prices ? inds.EMA.prices : null));
+
+                if (priceSource) {
+                    const priceStart = priceSource.length - N;
+                    const priceSeries = priceSource.slice(priceStart);
+
+                    new Chart(document.getElementById('priceChart').getContext('2d'), {
+                        type: 'line',
+                        data: {
+                            labels: dates,
+                            datasets: [
+                                {
+                                    label: 'Aktiekurs',
+                                    data: priceSeries,
+                                    borderColor: '#3f51b5',
+                                    backgroundColor: 'rgba(63, 81, 181, 0.15)',
+                                    borderWidth: 2,
+                                    tension: 0.1,
+                                    pointRadius: 0,
+                                    pointHoverRadius: 8,
+                                    pointHoverBackgroundColor: '#3f51b5',
+                                    pointHoverBorderColor: '#fff',
+                                    pointHoverBorderWidth: 1,
+                                    fill: true
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            layout: { padding: { left: 24, right: 24 } },
+                            interaction: { mode: 'nearest', intersect: false },
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: 'Aktiekurs över tid',
+                                    font: { size: 14 }
+                                },
+                                legend: {
+                                    display: true,
+                                    position: 'top'
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(ctx) {
+                                            const v = ctx.parsed.y;
+                                            const datum = ctx.label || '';
+                                            return `Datum: ${datum}, Aktiekurs: ${v != null ? v.toFixed(2) : '-'}`;
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: xScaleOpt,
+                                y: {
+                                    display: true,
+                                    title: { display: true, text: 'Aktiekurs' }
+                                }
+                            }
+                        }
+                    });
+                }
             } catch (err) {
                 document.getElementById('error').textContent = 'Kunde inte rita grafen: ' + err.message;
                 document.getElementById('error').classList.remove('hidden');
