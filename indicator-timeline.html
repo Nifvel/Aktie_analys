@@ -267,7 +267,7 @@
                                 };
 
                 // Graf 1: signaler över tid (befintlig)
-                new Chart(document.getElementById('timelineChart').getContext('2d'), {
+                const timelineChart = new Chart(document.getElementById('timelineChart').getContext('2d'), {
                     type: 'bar',
                     data: {
                         labels: indicatorOrder.map(k => indicatorLabels[k]),
@@ -332,6 +332,9 @@
                     const priceStart = priceSource.length - N;
                     const priceSeries = priceSource.slice(priceStart);
 
+                    // Använd samma vänsteraxelbredd som indikatorgrafen så första/sista datum synkar
+                    const leftAxisWidth = timelineChart.scales.y.width;
+
                     new Chart(document.getElementById('priceChart').getContext('2d'), {
                         type: 'line',
                         data: {
@@ -382,7 +385,9 @@
                                 x: xScaleOpt,
                                 y: {
                                     display: true,
-                                    title: { display: true, text: 'Aktiekurs' }
+                                    title: { display: true, text: 'Aktiekurs' },
+                                    minWidth: leftAxisWidth,
+                                    maxWidth: leftAxisWidth
                                 }
                             }
                         }
