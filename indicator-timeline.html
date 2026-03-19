@@ -250,8 +250,9 @@
 
                 // Gemensam x-axelkonfiguration så första/sista datum synkar mellan graferna
                 const xScaleOpt = {
+                                    type: 'linear',
                                     min: 0,
-                                    max: N - 1,
+                                    max: N,
                                     offset: true,
                                     display: true,
                                     title: { display: true, text: 'Datum' },
@@ -331,18 +332,19 @@
                 if (priceSource) {
                     const priceStart = priceSource.length - N;
                     const priceSeries = priceSource.slice(priceStart);
+                    // Punkt i mitten av varje dagssegment för exakt linjering mot graf 1
+                    const pricePoints = priceSeries.map((value, i) => ({ x: i + 0.5, y: value }));
 
                     // Använd samma vänsteraxelbredd som indikatorgrafen så första/sista datum synkar
                     const leftAxisWidth = timelineChart.scales.y.width;
 
-                    new Chart(document.getElementById('priceChart').getContext('2d'), {
+                    const priceChart = new Chart(document.getElementById('priceChart').getContext('2d'), {
                         type: 'line',
                         data: {
-                            labels: dates,
                             datasets: [
                                 {
                                     label: 'Aktiekurs',
-                                    data: priceSeries,
+                                    data: pricePoints,
                                     borderColor: '#3f51b5',
                                     backgroundColor: 'rgba(63, 81, 181, 0.15)',
                                     borderWidth: 2,
@@ -375,7 +377,8 @@
                                     callbacks: {
                                         label: function(ctx) {
                                             const v = ctx.parsed.y;
-                                            const datum = ctx.label || '';
+                                            const i = Math.floor(ctx.parsed.x);
+                                            const datum = (i >= 0 && i < dates.length) ? dates[i] : '';
                                             return `Datum: ${datum}, Aktiekurs: ${v != null ? v.toFixed(2) : '-'}`;
                                         }
                                     }
@@ -392,6 +395,21 @@
                             }
                         }
                     });
+
+                    // Exakt pixelmatchning av ritytan (chartArea) mot graf 1
+                    const targetLeft = timelineChart.chartArea.left;
+                    const targetRight = timelineChart.chartArea.right;
+                    const currentLeft = priceChart.chartArea.left;
+                    const currentRight = priceChart.chartArea.right;
+                    const leftDelta = targetLeft - currentLeft;
+                    const rightDelta = currentRight - targetRight;
+
+                    const basePadding = { left: 24, right: 24 };
+                    priceChart.options.layout.padding = {
+                        left: Math.max(0, Math.round(basePadding.left + leftDelta)),
+                        right: Math.max(0, Math.round(basePadding.right + rightDelta))
+                    };
+                    priceChart.update('none');
                 }
             } catch (err) {
                 document.getElementById('error').textContent = 'Kunde inte rita grafen: ' + err.message;
