@@ -375,12 +375,24 @@ const errorDiv = document.getElementById('error');
 const resultsDiv = document.getElementById('results');
 const stockNameEl = document.getElementById('stockName');
 const currentPriceEl = document.getElementById('currentPrice');
+const gaugeNeedleEl = document.getElementById('gaugeNeedle');
+const gaugeScoreEl = document.getElementById('gaugeScore');
+const gaugeLabelEl = document.getElementById('gaugeLabel');
 
 // Signal icons mapping
 const signalIcons = {
     buy: '🟢',
     sell: '🔴',
     neutral: '🟡'
+};
+
+const signalWeights = {
+    MA: 1.2,
+    EMA: 1.2,
+    RSI: 1.0,
+    MACD: 1.3,
+    Bollinger: 0.9,
+    Stochastic: 0.9
 };
 
 // Fetch stock data
@@ -447,6 +459,7 @@ function displayResults(data) {
     document.getElementById('buyCount').textContent = buyCount;
     document.getElementById('sellCount').textContent = sellCount;
     document.getElementById('neutralCount').textContent = neutralCount;
+    updateCompositeGauge(data.indicators);
     
     // Add click handlers for all indicator cards
     Object.keys(data.indicators).forEach(key => {
@@ -474,6 +487,35 @@ function displayResults(data) {
     }
     
     showResults();
+}
+
+function updateCompositeGauge(indicators) {
+    const signalValue = { buy: 1, neutral: 0, sell: -1 };
+    let weightedSum = 0;
+    let weightTotal = 0;
+
+    Object.entries(signalWeights).forEach(([key, weight]) => {
+        const signal = indicators[key]?.signal || 'neutral';
+        const numericSignal = signalValue[signal] ?? 0;
+        weightedSum += numericSignal * weight;
+        weightTotal += weight;
+    });
+
+    const normalized = weightTotal > 0 ? weightedSum / weightTotal : 0; // -1..1
+    const score = Math.round(((normalized + 1) / 2) * 100); // 0..100
+    const label = score > 66 ? 'Köp' : score < 34 ? 'Sälj' : 'Neutral';
+    const labelClass = score > 66 ? 'buy' : score < 34 ? 'sell' : 'neutral';
+
+    if (gaugeNeedleEl) {
+        gaugeNeedleEl.style.setProperty('--pos', String(score));
+    }
+    if (gaugeScoreEl) {
+        gaugeScoreEl.textContent = `${score}/100`;
+    }
+    if (gaugeLabelEl) {
+        gaugeLabelEl.textContent = label;
+        gaugeLabelEl.className = `gauge-label ${labelClass}`;
+    }
 }
 
 // Open indicator graph in new window
